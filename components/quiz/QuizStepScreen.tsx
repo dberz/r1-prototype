@@ -105,8 +105,9 @@ export function QuizStepScreen() {
           src={brandImages.quizIllustration}
           alt=""
           fill
+          unoptimized
           sizes="100vw"
-          className="object-cover object-center opacity-[0.1]"
+          className="h-full w-full max-w-none object-cover object-center opacity-[0.1]"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-brand-porcelain/93 via-brand-ivory/90 to-brand-cream/92" />
       </div>

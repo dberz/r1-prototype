@@ -12,8 +12,9 @@ export async function SiteChrome({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col">
       <SiteHeader userEmail={user?.email ?? null} />
-      <div className="flex-1">{children}</div>
-      <SiteFooter />
+      {/* `min-h-0` + `relative` keeps main content in normal flex flow so hero layers can’t cover chrome */}
+      <div className="relative z-0 min-h-0 flex-1">{children}</div>
+      <SiteFooter userEmail={user?.email ?? null} />
     </div>
   )
 }

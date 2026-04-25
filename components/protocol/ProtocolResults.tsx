@@ -35,8 +35,9 @@ export function ProtocolResults({
           src={brandImages.protocolReveal}
           alt={brandImageAlts.protocolReveal}
           fill
+          unoptimized
           sizes="(max-width: 768px) 100vw, 42rem"
-          className="object-cover object-center"
+          className="h-full w-full max-w-none object-cover object-center"
           priority
         />
       </figure>

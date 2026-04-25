@@ -1,4 +1,6 @@
+import Image from 'next/image'
 import Link from 'next/link'
+import { brandImageAlts, brandImages } from '@/lib/brand-images'
 
 const steps = [
   {
@@ -32,6 +34,17 @@ export default function HowItWorksPage() {
           R1 is built around a coherent protocol—not a random shelf of products. Here’s the flow we’re
           prototyping now.
         </p>
+
+        <figure className="relative mt-10 aspect-[16/10] w-full overflow-hidden border border-brand-putty/40 shadow-brand-soft">
+          <Image
+            src={brandImages.homepageSupport}
+            alt={brandImageAlts.homepageSupport}
+            fill
+            unoptimized
+            sizes="(max-width: 42rem) 100vw, 42rem"
+            className="h-full w-full max-w-none object-cover object-center"
+          />
+        </figure>
 
         <ol className="mt-14 space-y-12 border-t border-brand-putty/50 pt-12">
           {steps.map((step, i) => (
