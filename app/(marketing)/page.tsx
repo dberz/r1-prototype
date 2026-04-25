@@ -56,7 +56,14 @@ export default function HomePage() {
       >
         <div className="pointer-events-none absolute inset-0 z-0" aria-hidden>
           <div
-            className="absolute inset-0 bg-cover bg-no-repeat"
+            className="absolute inset-0 bg-cover bg-no-repeat md:hidden"
+            style={{
+              backgroundImage: `url(${brandImages.heroHomepage})`,
+              backgroundPosition: '74% 18%',
+            }}
+          />
+          <div
+            className="absolute inset-0 hidden bg-cover bg-no-repeat md:block"
             style={{
               backgroundImage: `url(${brandImages.heroHomepage})`,
               backgroundPosition: 'center 28%',
