@@ -35,6 +35,7 @@ function formatAnswerRow(
 function validateAnswers(body: QuizPostBody): string | null {
   for (const q of QUIZ_QUESTIONS) {
     const v = body.answers[q.key]
+    if (q.required === false && (v === undefined || v === '')) continue
     if (q.type === 'multi') {
       if (!Array.isArray(v) || v.length === 0) {
         return `Missing or invalid answer for: ${q.key}`

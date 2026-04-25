@@ -17,11 +17,76 @@ function getQuestion(step: number): QuizQuestion | undefined {
 }
 
 function isStepComplete(question: QuizQuestion, value: string | string[] | undefined): boolean {
+  if (question.required === false) {
+    if (value === undefined) return true
+    if (Array.isArray(value)) return true
+    return typeof value === 'string'
+  }
   if (value === undefined) return false
   if (question.type === 'multi') {
     return Array.isArray(value) && value.length > 0
   }
   return typeof value === 'string' && value.length > 0
+}
+
+function diagnosisContent(answers: Record<string, string | string[]>): {
+  bullets: string[]
+  explanation: string
+} {
+  const concerns = Array.isArray(answers.primary_concerns_now) ? answers.primary_concerns_now : []
+  const stoppedWorking = typeof answers.stopped_working === 'string' ? answers.stopped_working : ''
+  const ageRange = typeof answers.age_range === 'string' ? answers.age_range : ''
+
+  const hasIrritation = concerns.includes('sensitivity_irritation')
+  const hasDullness = concerns.includes('dullness_loss_glow')
+  const hasFirmness = concerns.includes('thinner_less_firm')
+  const age40Plus = ['40_45', '45_50', '50_plus'].includes(ageRange)
+
+  const sensitivityBarrierPattern = hasIrritation && stoppedWorking === 'retinol_vitamin_a'
+  const lowTurnoverPenetrationPattern = hasDullness && stoppedWorking === 'nothing_worked'
+  const collagenHormonalPattern = hasFirmness && age40Plus
+
+  const bullets: string[] = []
+  if (sensitivityBarrierPattern) {
+    bullets.push('Barrier disruption with increased reactivity to active ingredients')
+  }
+  if (lowTurnoverPenetrationPattern) {
+    bullets.push('Lower cellular turnover limiting visible renewal')
+    bullets.push('Reduced ingredient penetration into deeper skin layers')
+  }
+  if (collagenHormonalPattern) {
+    bullets.push('Declining collagen support affecting firmness and structure')
+    bullets.push('Hormonal influence consistent with midlife skin change')
+  }
+
+  if (!bullets.length) {
+    bullets.push(
+      'Reduced collagen support',
+      'Changing tolerance to active ingredients',
+      'Lower cellular turnover',
+      age40Plus ? 'Possible hormonal influence' : 'Possible inflammation-driven influence'
+    )
+  } else {
+    if (!bullets.some((b) => b.includes('collagen'))) {
+      bullets.push('Reduced collagen support')
+    }
+    if (!bullets.some((b) => b.includes('turnover'))) {
+      bullets.push('Lower cellular turnover')
+    }
+    if (age40Plus && !bullets.some((b) => b.includes('Hormonal influence'))) {
+      bullets.push('Possible hormonal influence')
+    }
+  }
+
+  const explanation = sensitivityBarrierPattern
+    ? 'Your response pattern suggests a skin barrier that has become less resilient over time. In this state, familiar actives can create irritation before they create repair.'
+    : lowTurnoverPenetrationPattern
+      ? 'When turnover slows and penetration is limited, products can sit on the surface without meaningful change. The skin can look persistently dull even with strong routines.'
+      : collagenHormonalPattern
+        ? 'For many women 40+, lower collagen signaling and estrogen decline shift how skin repairs itself. Firmness drops first, and previous routines stop producing the same response.'
+        : 'In midlife, skin biology changes, especially with shifts in estrogen and inflammation. Most products are not designed for this.'
+
+  return { bullets: bullets.slice(0, 4), explanation }
 }
 
 export function QuizStepScreen() {
@@ -46,7 +111,20 @@ export function QuizStepScreen() {
   }, [step, totalSteps, router])
 
   const currentValue = question ? answers[question.key] : undefined
-  const canContinue = question ? isStepComplete(question, currentValue) : false
+  const isOpening = step === 1
+  const isAnalyzing = step === 8
+  const isDiagnosis = step === 9
+  const isSolution = step === 10
+  const isFinalCta = step === 11
+  const diagnosis = useMemo(() => diagnosisContent(answers), [answers])
+  const canContinue =
+    isOpening || isDiagnosis || isSolution
+      ? true
+      : isAnalyzing || isFinalCta
+        ? false
+        : question
+          ? isStepComplete(question, currentValue)
+          : false
 
   const progress = (Math.min(Math.max(step, 1), totalSteps) / totalSteps) * 100
 
@@ -55,13 +133,25 @@ export function QuizStepScreen() {
   }
 
   const goNext = () => {
-    if (!canContinue || !question) return
+    if (isAnalyzing || submitting) return
+    if (isFinalCta) {
+      void completeQuiz()
+      return
+    }
+    if (!canContinue) return
     if (step < totalSteps) {
       router.push(`/quiz/${step + 1}`)
       return
     }
-    void completeQuiz()
   }
+
+  useEffect(() => {
+    if (!isAnalyzing) return
+    const id = window.setTimeout(() => {
+      router.push('/quiz/9')
+    }, 2200)
+    return () => window.clearTimeout(id)
+  }, [isAnalyzing, router])
 
   const completeQuiz = async () => {
     setSubmitting(true)
@@ -90,10 +180,10 @@ export function QuizStepScreen() {
     }
   }
 
-  if (!question || step < 1 || step > totalSteps) {
+  if (step < 1 || step > totalSteps) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-brand-porcelain px-6">
-        <p className="font-sans text-sm text-brand-mushroom">Loading…</p>
+        <p className="font-sans text-sm text-brand-mushroom">Loading...</p>
       </div>
     )
   }
@@ -147,37 +237,147 @@ export function QuizStepScreen() {
         <p className="font-sans text-[11px] font-medium uppercase tracking-[0.28em] text-brand-bronze">
           Step {step} of {totalSteps}
         </p>
-        <h1 className="mt-5 font-serif text-[1.65rem] font-light leading-snug tracking-tight text-brand-espresso md:text-3xl">
-          {question.question}
-        </h1>
-        {question.subtitle ? (
-          <p className="mt-3 font-sans text-sm leading-relaxed text-brand-mushroom">{question.subtitle}</p>
-        ) : null}
-        {question.educationNote ? (
-          <aside
-            className="mt-6 border-l-[3px] border-brand-brass/80 bg-brand-cream/70 py-3.5 pl-5 pr-4 shadow-brand-inset"
-            role="note"
-          >
-            <p className="font-sans text-sm leading-relaxed text-brand-mushroom">{question.educationNote}</p>
-          </aside>
-        ) : null}
 
-        <div className="mt-8 flex-1">
-          {question.type === 'single' && (
-            <SingleQuestion question={question} value={answers[question.key]} setAnswer={setAnswer} />
-          )}
-          {question.type === 'multi' && (
-            <MultiQuestion question={question} value={answers[question.key]} setAnswer={setAnswer} />
-          )}
-          {question.type === 'scale' && (
-            <p className="font-sans text-sm text-brand-mushroom">
-              This question type is not used in the current quiz.
+        {isOpening ? (
+          <div className="mt-10">
+            <h1 className="font-serif text-[1.85rem] font-light leading-tight tracking-tight text-brand-espresso md:text-[2.25rem]">
+              Let&apos;s understand what&apos;s actually happening with your skin.
+            </h1>
+            <p className="mt-5 font-sans text-base leading-relaxed text-brand-mushroom">
+              This takes about 2 minutes.
             </p>
-          )}
-        </div>
+          </div>
+        ) : isAnalyzing ? (
+          <div className="mt-12">
+            <h1 className="font-serif text-[1.75rem] font-light leading-tight tracking-tight text-brand-espresso">
+              Analyzing your skin profile...
+            </h1>
+            <p className="mt-4 max-w-md font-sans text-sm leading-relaxed text-brand-mushroom">
+              Looking at patterns in skin response, inflammation, and hormonal changes
+            </p>
+            <div className="mt-8 h-[3px] w-full overflow-hidden bg-brand-putty/70">
+              <div className="h-full w-2/5 animate-pulse bg-gradient-to-r from-brand-bronze via-brand-brass to-brand-bronze" />
+            </div>
+          </div>
+        ) : isDiagnosis ? (
+          <div className="mt-8 space-y-6">
+            <h1 className="font-serif text-[1.8rem] font-light leading-tight tracking-tight text-brand-espresso">
+              Here&apos;s what&apos;s likely happening
+            </h1>
+            <p className="font-sans text-sm leading-relaxed text-brand-mushroom">
+              Based on your answers, your skin is showing signs of:
+            </p>
+            <ul className="space-y-3 border-l border-brand-putty/70 pl-5">
+              {diagnosis.bullets.map((line) => (
+                <li key={line} className="font-sans text-[0.95rem] leading-snug text-brand-plum">
+                  - {line}
+                </li>
+              ))}
+            </ul>
+            <h2 className="font-serif text-xl font-light text-brand-espresso">
+              This is why products that used to work aren&apos;t anymore.
+            </h2>
+            <p className="max-w-md font-sans text-sm leading-relaxed text-brand-mushroom">{diagnosis.explanation}</p>
+          </div>
+        ) : isSolution ? (
+          <div className="mt-8 space-y-6">
+            <h1 className="font-serif text-[1.8rem] font-light leading-tight tracking-tight text-brand-espresso">
+              What actually works
+            </h1>
+            <p className="max-w-md font-sans text-sm leading-relaxed text-brand-mushroom">
+              The R1 system is designed specifically for this stage of skin.
+            </p>
+            <ul className="space-y-3 border-l border-brand-putty/70 pl-5">
+              <li className="font-sans text-[0.95rem] leading-snug text-brand-plum">
+                - Cellular regeneration (Vitamin A)
+              </li>
+              <li className="font-sans text-[0.95rem] leading-snug text-brand-plum">
+                - Deep penetration (microneedling)
+              </li>
+              <li className="font-sans text-[0.95rem] leading-snug text-brand-plum">
+                - Internal support (nutrition + inflammation)
+              </li>
+              <li className="font-sans text-[0.95rem] leading-snug text-brand-plum">
+                - Hormonal support (when appropriate)
+              </li>
+              <li className="font-sans text-[0.95rem] leading-snug text-brand-plum">
+                - Personalized progression over time
+              </li>
+            </ul>
+          </div>
+        ) : isFinalCta ? (
+          <div className="mt-8 space-y-6">
+            <h1 className="font-serif text-[1.85rem] font-light leading-tight tracking-tight text-brand-espresso">
+              Ready for your next step
+            </h1>
+            <p className="max-w-md font-sans text-sm leading-relaxed text-brand-mushroom">
+              Your profile is ready. We can now generate a personalized protocol based on how your
+              skin is changing.
+            </p>
+            <div className="space-y-4">
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={goNext}
+                className={cn(
+                  'w-full py-4 font-sans text-xs font-medium uppercase tracking-[0.22em] transition-all duration-300',
+                  !submitting
+                    ? 'bg-brand-espresso text-brand-ivory shadow-brand-card hover:bg-brand-chocolate'
+                    : 'cursor-not-allowed bg-brand-putty/60 text-brand-mushroom'
+                )}
+              >
+                {submitting ? 'Building your profile...' : 'Get your personalized protocol'}
+              </button>
+              <Link
+                href="/science"
+                className="block text-center font-sans text-sm text-brand-mushroom underline-offset-4 transition-colors hover:text-brand-espresso hover:underline"
+              >
+                Learn more about the science
+              </Link>
+            </div>
+          </div>
+        ) : question ? (
+          <>
+            <h1 className="mt-5 font-serif text-[1.65rem] font-light leading-snug tracking-tight text-brand-espresso md:text-3xl">
+              {question.question}
+            </h1>
+            {question.subtitle ? (
+              <p className="mt-3 font-sans text-sm leading-relaxed text-brand-mushroom">{question.subtitle}</p>
+            ) : null}
+            {question.educationNote ? (
+              <aside
+                className="mt-6 border-l-[3px] border-brand-brass/80 bg-brand-cream/70 py-3.5 pl-5 pr-4 shadow-brand-inset"
+                role="note"
+              >
+                <p className="font-sans text-sm leading-relaxed text-brand-mushroom">
+                  {question.educationNote}
+                </p>
+              </aside>
+            ) : null}
+
+            <div className="mt-8 flex-1">
+              {question.type === 'single' && (
+                <SingleQuestion
+                  question={question}
+                  value={answers[question.key]}
+                  setAnswer={setAnswer}
+                  quiet={question.key === 'age_range'}
+                />
+              )}
+              {question.type === 'multi' && (
+                <MultiQuestion question={question} value={answers[question.key]} setAnswer={setAnswer} />
+              )}
+            </div>
+          </>
+        ) : null}
       </main>
 
-      <footer className="fixed bottom-0 left-0 right-0 z-20 border-t border-brand-putty/60 bg-brand-porcelain/92 px-5 py-4 shadow-brand-soft backdrop-blur-md pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <footer
+        className={cn(
+          'fixed bottom-0 left-0 right-0 z-20 border-t border-brand-putty/60 bg-brand-porcelain/92 px-5 py-4 shadow-brand-soft backdrop-blur-md pb-[max(1rem,env(safe-area-inset-bottom))]',
+          (isAnalyzing || isFinalCta) && 'hidden'
+        )}
+      >
         <div className="mx-auto max-w-lg">
           {error ? (
             <p className="mb-3 font-sans text-sm text-brand-oxblood" role="alert">
@@ -186,21 +386,26 @@ export function QuizStepScreen() {
           ) : null}
           <button
             type="button"
-            disabled={!canContinue || submitting}
+            disabled={!canContinue || submitting || isAnalyzing}
             onClick={goNext}
             className={cn(
               'w-full py-4 font-sans text-xs font-medium uppercase tracking-[0.22em] transition-all duration-300',
-              canContinue && !submitting
+              canContinue && !submitting && !isAnalyzing
                 ? 'bg-brand-espresso text-brand-ivory shadow-brand-card hover:bg-brand-chocolate'
                 : 'cursor-not-allowed bg-brand-putty/60 text-brand-mushroom'
             )}
           >
-            {submitting
-              ? 'Saving…'
-              : step === totalSteps
-                ? 'See my protocol'
-                : 'Continue'}
+            {submitting ? 'Saving...' : isOpening ? 'Start Assessment' : 'Continue'}
           </button>
+          {question?.required === false ? (
+            <button
+              type="button"
+              onClick={goNext}
+              className="mt-3 w-full font-sans text-[11px] uppercase tracking-[0.16em] text-brand-taupe transition-colors hover:text-brand-mushroom"
+            >
+              Skip for now
+            </button>
+          ) : null}
           <Link
             href="/"
             className="mt-4 block text-center font-sans text-xs tracking-wide text-brand-mushroom underline-offset-4 transition-colors hover:text-brand-espresso hover:underline"
@@ -217,10 +422,12 @@ function SingleQuestion({
   question,
   value,
   setAnswer,
+  quiet = false,
 }: {
   question: QuizQuestion
   value: string | string[] | undefined
   setAnswer: (key: string, v: string | string[]) => void
+  quiet?: boolean
 }) {
   const str = typeof value === 'string' ? value : ''
 
@@ -236,13 +443,22 @@ function SingleQuestion({
           value={opt.value}
           className={cn(
             'group relative w-full text-left outline-none',
-            'border border-brand-putty/90 bg-white/60 px-4 py-4 pl-5 shadow-brand-inset transition-all',
+            quiet
+              ? 'border border-brand-putty/70 bg-brand-porcelain/60 px-4 py-3.5 pl-5 shadow-brand-inset transition-all'
+              : 'border border-brand-putty/90 bg-white/60 px-4 py-4 pl-5 shadow-brand-inset transition-all',
             'before:absolute before:left-0 before:top-0 before:h-full before:w-[3px] before:bg-transparent before:transition-colors',
             'data-[state=checked]:border-brand-espresso/90 data-[state=checked]:bg-brand-cream data-[state=checked]:shadow-brand-card data-[state=checked]:before:bg-brand-brass',
             'focus-visible:ring-2 focus-visible:ring-brand-brass/40'
           )}
         >
-          <span className="block font-sans text-[15px] leading-snug text-brand-espresso">{opt.label}</span>
+          <span
+            className={cn(
+              'block font-sans leading-snug text-brand-espresso',
+              quiet ? 'text-[14px] font-normal' : 'text-[15px]'
+            )}
+          >
+            {opt.label}
+          </span>
           {opt.description ? (
             <span className="mt-1.5 block font-sans text-sm font-normal leading-relaxed text-brand-mushroom">
               {opt.description}
